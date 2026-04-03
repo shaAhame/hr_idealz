@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>iDealz Payslip Generator</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --navy:   #0d1b2a;
+  --blue:   #0f4c75;
+  --sky:    #1b98e0;
+  --ice:    #e8f4fd;
+  --white:  #ffffff;
+  --slate:  #4a5568;
+  --mist:   #f0f5fa;
+  --line:   #dde4ed;
+  --green:  #1a7a4e;
+  --red:    #c0392b;
+  --r:      14px;
+  --sh:     0 2px 20px rgba(15,76,117,.09);
+}
+body { font-family:'DM Sans',sans-serif; background:#e9eff7; min-height:100vh; color:var(--navy); }
+
+/* top bar */
+.bar { background:var(--navy); height:56px; display:flex; align-items:center; justify-content:space-between; padding:0 28px; position:sticky; top:0; z-index:50; }
+.bar-brand { display:flex; align-items:center; gap:10px; }
+.bar-logo { width:32px; height:32px; background:var(--sky); border-radius:8px; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:13px; color:#fff; letter-spacing:-.5px; }
+.bar-name { font-size:14px; font-weight:600; color:#fff; }
+.bar-tag  { font-size:10px; color:#7a9bb8; }
+.bar-clock { font-family:'DM Mono',monospace; font-size:11px; color:#7a9bb8; }
+
+/* layout */
+.wrap { max-width:980px; margin:0 auto; padding:32px 20px 64px; display:grid; grid-template-columns:340px 1fr; gap:22px; align-items:start; }
+@media(max-width:700px){ .wrap{ grid-template-columns:1fr; } }
+
+/* card */
+.card { background:#fff; border-radius:var(--r); box-shadow:var(--sh); overflow:hidden; }
+.card-head { padding:16px 20px 12px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:10px; }
+.card-ico  { width:30px; height:30px; background:var(--ice); border-radius:7px; display:flex; align-items:center; justify-content:center; font-size:14px; }
+.card-title{ font-size:13px; font-weight:600; }
+.card-sub  { font-size:11px; color:var(--slate); margin-top:1px; }
+.card-body { padding:20px; }
+
+/* upload zone */
+.zone { border:2px dashed var(--line); border-radius:10px; padding:28px 16px; text-align:center; cursor:pointer; transition:.18s; position:relative; overflow:hidden; }
+.zone:hover,.zone.over { border-color:var(--sky); background:var(--ice); }
+.zone input { position:absolute; inset:0; opacity:0; cursor:pointer; width:100%; }
+.zone-ico { width:44px; height:44px; background:var(--ice); border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:20px; margin:0 auto 10px; }
+.zone-lbl { font-size:13px; font-weight:500; color:var(--blue); }
+.zone-hint{ font-size:11px; color:var(--slate); margin-top:3px; }
+
+/* file pill */
+.pill { display:none; align-items:center; gap:9px; background:var(--ice); border-radius:8px; padding:9px 12px; margin-top:10px; font-size:12px; color:var(--blue); font-weight:500; }
+.pill.on { display:flex; }
+.pill-name{ flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.pill-x   { background:none; border:none; cursor:pointer; font-size:18px; line-height:1; color:var(--slate); padding:0; }
+.pill-x:hover { color:var(--red); }
+
+/* badge */
+.badge { display:none; align-items:center; gap:10px; background:linear-gradient(135deg,var(--blue),var(--sky)); color:#fff; border-radius:8px; padding:10px 14px; margin-top:14px; font-size:12px; }
+.badge.on { display:flex; }
+.badge-n  { font-size:22px; font-weight:600; font-family:'DM Mono',monospace; }
+
+/* field */
+.lbl { display:block; font-size:11px; font-weight:500; color:var(--slate); margin:14px 0 5px; }
+input[type=text] { width:100%; height:38px; border:1.5px solid var(--line); border-radius:8px; padding:0 11px; font-size:13px; font-family:inherit; color:var(--navy); outline:none; transition:border .15s; }
+input[type=text]:focus { border-color:var(--sky); }
+
+/* button */
+.btn { width:100%; height:46px; margin-top:18px; border:none; border-radius:10px; background:linear-gradient(135deg,var(--blue),var(--sky)); font-size:13px; font-weight:600; color:#fff; cursor:pointer; font-family:inherit; display:flex; align-items:center; justify-content:center; gap:7px; transition:opacity .18s,transform .1s; }
+.btn:hover { opacity:.9; }
+.btn:active { transform:scale(.98); }
+.btn:disabled { opacity:.45; cursor:not-allowed; }
+
+/* progress */
+.prog-wrap { display:none; margin-top:14px; }
+.prog-wrap.on { display:block; }
+.prog-bar  { height:4px; background:var(--line); border-radius:99px; overflow:hidden; }
+.prog-fill { height:100%; background:linear-gradient(90deg,var(--blue),var(--sky)); border-radius:99px; width:0; transition:width .3s; }
+.prog-fill.run { animation:sweep 1.4s ease-in-out infinite; }
+@keyframes sweep { 0%{width:20%;margin-left:0} 50%{width:35%;margin-left:35%} 100%{width:20%;margin-left:80%} }
+.prog-lbl  { font-size:11px; color:var(--slate); margin-top:5px; text-align:center; }
+
+/* success */
+.ok { display:none; background:#f0faf5; border:1.5px solid #86efac; border-radius:9px; padding:14px 16px; margin-top:14px; text-align:center; }
+.ok.on { display:block; }
+.ok h4 { font-size:13px; font-weight:600; color:var(--green); margin-bottom:3px; }
+.ok p  { font-size:11px; color:var(--slate); }
+
+/* error */
+.err { display:none; background:#fef2f2; border:1.5px solid #fca5a5; border-radius:9px; padding:14px 16px; margin-top:14px; }
+.err.on { display:block; }
+.err p { font-size:12px; color:var(--red); }
+
+/* stats row */
+.stats { display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-bottom:14px; }
+.stat { background:#fff; border-radius:9px; box-shadow:var(--sh); padding:12px 14px; text-align:center; }
+.stat-n   { font-size:22px; font-weight:600; font-family:'DM Mono',monospace; color:var(--navy); }
+.stat-lbl { font-size:9px; color:var(--slate); text-transform:uppercase; letter-spacing:.5px; font-weight:500; margin-top:2px; }
+.skel { height:22px; background:var(--line); border-radius:5px; width:36px; margin:0 auto 4px; }
+
+/* employee list */
+.empty { text-align:center; padding:44px 20px; color:var(--slate); font-size:12px; }
+.empty-ico { font-size:28px; opacity:.35; margin-bottom:8px; }
+.list { max-height:400px; overflow-y:auto; }
+.list::-webkit-scrollbar { width:3px; }
+.list::-webkit-scrollbar-thumb { background:var(--line); border-radius:99px; }
+.emp { display:flex; align-items:center; gap:11px; padding:10px 20px; border-bottom:1px solid var(--mist); transition:background .1s; }
+.emp:last-child { border:none; }
+.emp:hover { background:var(--mist); }
+.av { width:30px; height:30px; border-radius:50%; background:var(--ice); display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:600; color:var(--blue); flex-shrink:0; border:1.5px solid var(--line); }
+.emp-info { flex:1; min-width:0; }
+.emp-n { font-size:12px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.emp-r { font-size:10px; color:var(--slate); }
+.dot { width:6px; height:6px; border-radius:50%; background:var(--green); flex-shrink:0; }
+</style>
+</head>
+<body>
+
+<div class="bar">
+  <div class="bar-brand">
+    <div class="bar-logo">iD</div>
+    <div>
+      <div class="bar-name">iDealz Lanka</div>
+      <div class="bar-tag">HR Payslip System</div>
+    </div>
+  </div>
+  <div class="bar-clock" id="clk">--:--:--</div>
+</div>
+
+<div class="wrap">
+
+  <!-- LEFT -->
+  <div>
+    <div class="card">
+      <div class="card-head">
+        <div class="card-ico">📋</div>
+        <div>
+          <div class="card-title">Generate Payslips</div>
+          <div class="card-sub">Upload Excel → download all PDFs as ZIP</div>
+        </div>
+      </div>
+      <div class="card-body">
+
+        <div class="zone" id="zone">
+          <input type="file" id="fi" accept=".xlsx,.xls">
+          <div class="zone-ico">📊</div>
+          <div class="zone-lbl">Drop Payroll Excel here</div>
+          <div class="zone-hint">or click to browse · .xlsx / .xls</div>
+        </div>
+
+        <div class="pill" id="pill">
+          <span>📄</span>
+          <span class="pill-name" id="fn"></span>
+          <button class="pill-x" id="px">×</button>
+        </div>
+
+        <div class="badge" id="badge">
+          <div>
+            <div class="badge-n" id="bc">0</div>
+            <div style="font-size:10px;opacity:.8">employees detected</div>
+          </div>
+          <div style="margin-left:auto;font-size:18px">👥</div>
+        </div>
+
+        <label class="lbl">Pay Period</label>
+        <input type="text" id="period" value="MAR 2026" placeholder="e.g. MAR 2026">
+
+        <button class="btn" id="btnGen" disabled>
+          <span id="bico">⚡</span><span id="btxt">Generate &amp; Download All PDFs</span>
+        </button>
+
+        <div class="prog-wrap" id="pw">
+          <div class="prog-bar"><div class="prog-fill run" id="pf"></div></div>
+          <div class="prog-lbl" id="pl">Generating payslips…</div>
+        </div>
+
+        <div class="ok" id="ok">
+          <h4>✅ Payslips Ready!</h4>
+          <p id="okm">All payslips downloaded as a ZIP.</p>
+        </div>
+
+        <div class="err" id="errBox">
+          <p id="errMsg"></p>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT -->
+  <div>
+    <div class="stats">
+      <div class="stat"><div class="skel" id="sk1"></div><div class="stat-n" id="sn1" style="display:none">0</div><div class="stat-lbl">Employees</div></div>
+      <div class="stat"><div class="skel" id="sk2"></div><div class="stat-n" id="sn2" style="display:none">0</div><div class="stat-lbl">Departments</div></div>
+      <div class="stat"><div class="skel" id="sk3"></div><div class="stat-n" id="sn3" style="display:none">0</div><div class="stat-lbl">PDFs</div></div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="card-ico">👤</div>
+        <div>
+          <div class="card-title">Employee List</div>
+          <div class="card-sub" id="lsub">Upload payroll to see employees</div>
+        </div>
+      </div>
+      <div id="listWrap">
+        <div class="empty" id="lempty">
+          <div class="empty-ico">📂</div>
+          <div>No payroll file uploaded yet</div>
+          <div style="font-size:10px;margin-top:4px;color:#9ca3af">Upload an Excel to preview</div>
+        </div>
+        <div class="list" id="empList"></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ── clock ──────────────────────────────────────────────────────────────────
+setInterval(() => {
+  document.getElementById('clk').textContent =
+    new Date().toLocaleTimeString('en-US',{hour12:false});
+}, 1000);
+
+// ── state ──────────────────────────────────────────────────────────────────
+let currentFile = null;
+let empNames    = [];
+
+const $ = id => document.getElementById(id);
+
+function ini(name) {
+  const p = name.trim().split(' ').filter(Boolean);
+  return p.length >= 2 ? (p[0][0]+p[1][0]).toUpperCase() : name.slice(0,2).toUpperCase();
+}
+
+// ── file handling ──────────────────────────────────────────────────────────
+function setFile(f) {
+  currentFile = f;
+  $('fn').textContent = f.name;
+  $('pill').classList.add('on');
+  $('zone').style.display = 'none';
+  $('ok').classList.remove('on');
+  $('errBox').classList.remove('on');
+  fetchEmployees(f);
+}
+
+function clearFile() {
+  currentFile = null;
+  $('fi').value = '';
+  $('pill').classList.remove('on');
+  $('zone').style.display = '';
+  $('badge').classList.remove('on');
+  $('btnGen').disabled = true;
+  $('empList').innerHTML = '';
+  $('lempty').style.display = '';
+  $('lsub').textContent = 'Upload payroll to see employees';
+  $('ok').classList.remove('on');
+  $('errBox').classList.remove('on');
+  ['sn1','sn2','sn3'].forEach(id => $( id).style.display='none');
+  ['sk1','sk2','sk3'].forEach(id => $(id).style.display='');
+}
+
+$('fi').addEventListener('change', e => { if(e.target.files[0]) setFile(e.target.files[0]); });
+$('px').addEventListener('click', clearFile);
+
+const zone = $('zone');
+zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('over'); });
+zone.addEventListener('dragleave', () => zone.classList.remove('over'));
+zone.addEventListener('drop', e => {
+  e.preventDefault(); zone.classList.remove('over');
+  if(e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]);
+});
+
+// ── fetch employee list ────────────────────────────────────────────────────
+async function fetchEmployees(file) {
+  const fd = new FormData();
+  fd.append('payroll', file);
+  try {
+    const res  = await fetch('/api/employees', {method:'POST', body:fd});
+    const data = await res.json();
+    if(data.error) throw new Error(data.error);
+
+    empNames = data.names;
+    $('bc').textContent = data.count;
+    $('badge').classList.add('on');
+    $('btnGen').disabled = false;
+
+    // stats
+    $('sn1').textContent = data.count;
+    $('sn2').textContent = Math.min(new Set(data.names.map(n=>n.split(' ')[0])).size, data.count);
+    $('sn3').textContent = data.count;
+    ['sn1','sn2','sn3'].forEach(id => $(id).style.display='block');
+    ['sk1','sk2','sk3'].forEach(id => $(id).style.display='none');
+
+    // list
+    $('lempty').style.display = 'none';
+    $('lsub').textContent = `${data.count} employees found`;
+    $('empList').innerHTML = '';
+    data.names.forEach(name => {
+      const div = document.createElement('div');
+      div.className = 'emp';
+      div.innerHTML = `
+        <div class="av">${ini(name)}</div>
+        <div class="emp-info">
+          <div class="emp-n">${name}</div>
+          <div class="emp-r">iDealz Lanka (Pvt) Ltd</div>
+        </div>
+        <div class="dot"></div>`;
+      $('empList').appendChild(div);
+    });
+  } catch(e) {
+    showErr('Could not read payroll file: ' + e.message);
+    clearFile();
+  }
+}
+
+// ── generate ───────────────────────────────────────────────────────────────
+$('btnGen').addEventListener('click', async () => {
+  if(!currentFile) return;
+  const period = $('period').value.trim() || 'MAR 2026';
+
+  $('btnGen').disabled = true;
+  $('bico').textContent = '⏳';
+  $('btxt').textContent = 'Generating…';
+  $('pw').classList.add('on');
+  $('pl').textContent = `Generating ${empNames.length} payslips…`;
+  $('ok').classList.remove('on');
+  $('errBox').classList.remove('on');
+
+  const fd = new FormData();
+  fd.append('payroll', currentFile);
+  fd.append('period', period);
+
+  try {
+    const res = await fetch('/api/generate', {method:'POST', body:fd});
+    if(!res.ok) {
+      const err = await res.json().catch(() => ({error:'Server error'}));
+      throw new Error(err.error || 'Server error');
+    }
+
+    const blob = await res.blob();
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url;
+    a.download = `iDealz_Payslips_${period.replace(/ /g,'_')}.zip`;
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    $('pf').classList.remove('run');
+    $('pf').style.width = '100%';
+    $('pl').textContent = '✓ All payslips generated!';
+    $('ok').classList.add('on');
+    $('okm').textContent = `${empNames.length} PDF payslips downloaded. Extract the ZIP to get individual files.`;
+    document.querySelectorAll('.dot').forEach(d => d.style.background='var(--sky)');
+
+  } catch(e) {
+    showErr('Error generating payslips: ' + e.message);
+  } finally {
+    $('btnGen').disabled = false;
+    $('bico').textContent = '⚡';
+    $('btxt').textContent = 'Generate & Download All PDFs';
+    setTimeout(() => {
+      $('pw').classList.remove('on');
+      $('pf').classList.add('run');
+      $('pf').style.width = '';
+    }, 4000);
+  }
+});
+
+function showErr(msg) {
+  $('errMsg').textContent = '⚠️ ' + msg;
+  $('errBox').classList.add('on');
+}
+</script>
+</body>
+</html>
