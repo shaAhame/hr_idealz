@@ -144,33 +144,43 @@ def draw_payslip_pdf(emp, pay_period):
         c.setFillColor(vc or DARK); c.drawRightString(x+w-4*mm, y+2.2*mm, lkr(val))
 
     # Earnings
-    basic = safe(emp.get('basic_salary'))
-    bra2  = safe(emp.get('bra2'))
-    bra1  = safe(emp.get('bra1'))
-    dc    = safe(emp.get('daily_commission'))
-    po    = safe(emp.get('pre_owned_commission'))
-    aw    = safe(emp.get('additional_working_days'))
-    ac    = safe(emp.get('accessories_commission'))
-    tb    = basic + bra2 + bra1
-    te    = tb + dc + po + aw + ac
+    # Total Basic Earning = Basic + BRA2 + BRA1 + Allowance
+    # Total Income = Total Basic Earning + Accessories Commission
+    #              + Daily Commission + Pre Owned Commission
+    #              + Additional Working Days + Salary Adjustment
+    basic  = safe(emp.get('basic_salary'))
+    bra2   = safe(emp.get('bra2'))
+    bra1   = safe(emp.get('bra1'))
+    allow  = safe(emp.get('allowance'))
+    tb     = basic + bra2 + bra1 + allow        # Total Basic Earning
+
+    ac     = safe(emp.get('accessories_commission'))
+    dc     = safe(emp.get('daily_commission'))
+    po     = safe(emp.get('pre_owned_commission'))
+    aw     = safe(emp.get('additional_working_days'))
+    sa_adj = safe(emp.get('salary_adjustment'))
+    te     = tb + ac + dc + po + aw + sa_adj    # Total Income
 
     hdr(m, ty, half, 'EARNINGS')
     r = ty - RH
     for lbl, v, b, a in [
-        ('Basic Salary',              basic, False, False),
-        ('Budgetary Allowance (BRA2)',bra2,  False, True),
-        ('Allowance (BRA1)',          bra1,  False, False),
-        ('Total Basic',               tb,    True,  True),
-        ('Per Day Commission',        dc,    False, False),
-        ('Pre Owned Commission',      po,    False, True),
-        ('Additional Work Pay',       aw,    False, False),
-        ('Accessories Commission',    ac,    False, True),
+        ('Basic Salary',             basic,  False, False),
+        ('BRA 2 (Act 2016)',         bra2,   False, True),
+        ('BRA 1 (Act 2005)',         bra1,   False, False),
+        ('Allowance',                allow,  False, True),
+        ('Total Basic Earning',      tb,     True,  False),
+        ('Accessories Commission',   ac,     False, True),
+        ('Daily Commission',         dc,     False, False),
+        ('Pre Owned Commission',     po,     False, True),
+        ('Additional Working Days',  aw,     False, False),
+        ('Salary Adjustment',        sa_adj, False, True),
     ]:
         row(m, r, half, lbl, v, b, a); r -= RH
-    tot(m, r, half, 'TOTAL EARNINGS', te, GREEN)
+    tot(m, r, half, 'TOTAL INCOME', te, GREEN)
     eb = r
 
     # Deductions
+    # EPF/ETF base = Basic + BRA2 + BRA1 only (Allowance & commissions excluded)
     base = basic + bra1 + bra2
     epf8 = round(base * EPF_EMP, 2)
     np_d = safe(emp.get('no_pay_deduction'))
