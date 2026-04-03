@@ -132,6 +132,7 @@ def draw_payslip_pdf(emp, pay_period):
 
     def row(x, y, w, lbl, val, bold=False, alt=False, vc=None):
         if alt: c.setFillColor(LIGHT); c.rect(x, y, w, RH, fill=1, stroke=0)
+        if not lbl: return   # blank padding row — just the background stripe
         c.setFont('Helvetica-Bold' if bold else 'Helvetica', 8); c.setFillColor(DARK)
         c.drawString(x+4*mm, y+2.2*mm, lbl)
         c.setFillColor(vc or (DARK if bold else GREEN))
@@ -190,6 +191,8 @@ def draw_payslip_pdf(emp, pay_period):
     po_adv = safe(emp.get('pre_owned_comm_advance'))
     td   = epf8 + np_d + la + lr + sa + pd_adv + po_adv
 
+    # Earnings has 10 data rows; Deductions has 7 — pad with 3 blank rows so
+    # both TOTAL lines land on the exact same y coordinate (perfect alignment)
     dx = m + half + 6*mm
     hdr(dx, ty, half, 'DEDUCTIONS')
     r2 = ty - RH
@@ -201,31 +204,47 @@ def draw_payslip_pdf(emp, pay_period):
         ('Salary Advance',           sa,     False, False),
         ('Per Day Comm. Advance',    pd_adv, False, True),
         ('Pre Owned Comm. Advance',  po_adv, False, False),
+        ('',                         0,      False, False),   # padding row 1
+        ('',                         0,      False, True),    # padding row 2
+        ('',                         0,      False, False),   # padding row 3
     ]:
         row(dx, r2, half, lbl, v, b, a, vc=RED if v > 0 else GRAY); r2 -= RH
     tot(dx, r2, half, 'TOTAL DEDUCTIONS', td, RED)
 
-    # Net Pay
-    ny  = min(eb, r2) - 12*mm
+    # Gap: 10mm below TOTAL rows → thin divider line → 6mm gap → Net Pay banner
+    bottom = min(eb, r2) - 18*mm
     net = te - td
-    c.setFillColor(DARK); c.roundRect(m, ny, cw, 14*mm, 3*mm, fill=1, stroke=0)
-    c.setFont('Helvetica', 10); c.setFillColor(SKY)
-    c.drawString(m+8*mm, ny+5.5*mm, 'NET PAY')
-    c.setFont('Helvetica-Bold', 16); c.setFillColor(WHITE)
-    c.drawRightString(W-m-8*mm, ny+4.5*mm, f'LKR {net:,.2f}')
 
-    # Employer contributions — read directly from sheet, 0 if not applicable
-    epf_er = safe(emp.get('epf_employer_12'))     # Employer EPF 12% — from sheet
-    etf_er = safe(emp.get('etf_employer_3'))       # Employer ETF 3%  — from sheet
-    ey2 = ny - 14*mm
-    c.setFillColor(LIGHT); c.roundRect(m, ey2, cw, 12*mm, 3*mm, fill=1, stroke=0)
+    # Thin separator line between totals and Net Pay
+    c.setStrokeColor(colors.HexColor('#dde4ed'))
+    c.setLineWidth(0.5)
+    c.line(m, min(eb, r2) - 6*mm, m + cw, min(eb, r2) - 6*mm)
+
+    # Net Pay banner
+    c.setFillColor(DARK); c.roundRect(m, bottom, cw, 14*mm, 3*mm, fill=1, stroke=0)
+    c.setFont('Helvetica', 10); c.setFillColor(SKY)
+    c.drawString(m+8*mm, bottom + 5.5*mm, 'NET PAY')
+    c.setFont('Helvetica-Bold', 16); c.setFillColor(WHITE)
+    c.drawRightString(W-m-8*mm, bottom + 4.5*mm, f'LKR {net:,.2f}')
+
+    # Gap: 8mm below Net Pay banner → thin divider line → 6mm gap → EPF/ETF box
+    epf_er = safe(emp.get('epf_employer_12'))
+    etf_er = safe(emp.get('etf_employer_3'))
+
+    # Thin separator line between Net Pay and EPF/ETF
+    c.setStrokeColor(colors.HexColor('#dde4ed'))
+    c.setLineWidth(0.5)
+    c.line(m, bottom - 6*mm, m + cw, bottom - 6*mm)
+
+    ey2 = bottom - 24*mm
+    c.setFillColor(LIGHT); c.roundRect(m, ey2, cw, 16*mm, 3*mm, fill=1, stroke=0)
     c.setFont('Helvetica-Bold', 8); c.setFillColor(ACCENT)
-    c.drawString(m+5*mm, ey2+7.5*mm, 'EMPLOYER CONTRIBUTIONS  (not deducted from employee)')
+    c.drawString(m+5*mm, ey2+10*mm, 'EMPLOYER CONTRIBUTIONS  (not deducted from employee)')
     c.setFont('Helvetica', 8); c.setFillColor(DARK)
     if epf_er == 0 and etf_er == 0:
-        c.drawString(m+5*mm, ey2+2.5*mm, 'Not applicable for this employee')
+        c.drawString(m+5*mm, ey2+4*mm, 'EPF & ETF: Not applicable for this employee')
     else:
-        c.drawString(m+5*mm, ey2+2.5*mm,
+        c.drawString(m+5*mm, ey2+4*mm,
             f'EPF 12%: LKR {epf_er:,.2f}   |   ETF 3%: LKR {etf_er:,.2f}')
 
     # Footer
