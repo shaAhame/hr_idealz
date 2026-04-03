@@ -179,27 +179,28 @@ def draw_payslip_pdf(emp, pay_period):
     tot(m, r, half, 'TOTAL INCOME', te, GREEN)
     eb = r
 
-    # Deductions
-    # EPF/ETF base = Basic + BRA2 + BRA1 only (Allowance & commissions excluded)
-    base = basic + bra1 + bra2
-    epf8 = round(base * EPF_EMP, 2)
+    # Deductions — read directly from payroll sheet, no auto-calculation
+    # If HR leaves EPF/ETF blank or 0 for new employees, it simply shows as 0
+    epf8 = safe(emp.get('epf_employee_8'))        # Employee EPF 8% — from sheet
     np_d = safe(emp.get('no_pay_deduction'))
     la   = safe(emp.get('late_attendance'))
     lr   = safe(emp.get('salary_deduction'))
     sa   = safe(emp.get('salary_advance'))
-    td   = epf8 + np_d + la + lr + sa + dc + po
+    pd_adv = safe(emp.get('per_day_comm_advance'))
+    po_adv = safe(emp.get('pre_owned_comm_advance'))
+    td   = epf8 + np_d + la + lr + sa + pd_adv + po_adv
 
     dx = m + half + 6*mm
     hdr(dx, ty, half, 'DEDUCTIONS')
     r2 = ty - RH
     for lbl, v, b, a in [
-        ('EPF 8% (Employee)',        epf8, True,  False),
-        ('No Pay Deduction',         np_d, False, True),
-        ('Late Arrivals',            la,   False, False),
-        ('Loan Repayment',           lr,   False, True),
-        ('Salary Advance',           sa,   False, False),
-        ('Per Day Comm. Advance',    dc,   False, True),
-        ('Pre Owned Comm. Advance',  po,   False, False),
+        ('EPF 8% (Employee)',        epf8,   True,  False),
+        ('No Pay Deduction',         np_d,   False, True),
+        ('Late Arrivals',            la,     False, False),
+        ('Loan Repayment',           lr,     False, True),
+        ('Salary Advance',           sa,     False, False),
+        ('Per Day Comm. Advance',    pd_adv, False, True),
+        ('Pre Owned Comm. Advance',  po_adv, False, False),
     ]:
         row(dx, r2, half, lbl, v, b, a, vc=RED if v > 0 else GRAY); r2 -= RH
     tot(dx, r2, half, 'TOTAL DEDUCTIONS', td, RED)
@@ -213,16 +214,19 @@ def draw_payslip_pdf(emp, pay_period):
     c.setFont('Helvetica-Bold', 16); c.setFillColor(WHITE)
     c.drawRightString(W-m-8*mm, ny+4.5*mm, f'LKR {net:,.2f}')
 
-    # Employer contributions
+    # Employer contributions — read directly from sheet, 0 if not applicable
+    epf_er = safe(emp.get('epf_employer_12'))     # Employer EPF 12% — from sheet
+    etf_er = safe(emp.get('etf_employer_3'))       # Employer ETF 3%  — from sheet
     ey2 = ny - 14*mm
-    epe = round(base * EPF_ER, 2)
-    ete = round(base * ETF_ER, 2)
     c.setFillColor(LIGHT); c.roundRect(m, ey2, cw, 12*mm, 3*mm, fill=1, stroke=0)
     c.setFont('Helvetica-Bold', 8); c.setFillColor(ACCENT)
     c.drawString(m+5*mm, ey2+7.5*mm, 'EMPLOYER CONTRIBUTIONS  (not deducted from employee)')
     c.setFont('Helvetica', 8); c.setFillColor(DARK)
-    c.drawString(m+5*mm, ey2+2.5*mm,
-        f'EPF 12%: LKR {epe:,.2f}   |   ETF 3%: LKR {ete:,.2f}   |   EPF/ETF Base: LKR {base:,.2f}')
+    if epf_er == 0 and etf_er == 0:
+        c.drawString(m+5*mm, ey2+2.5*mm, 'Not applicable for this employee')
+    else:
+        c.drawString(m+5*mm, ey2+2.5*mm,
+            f'EPF 12%: LKR {epf_er:,.2f}   |   ETF 3%: LKR {etf_er:,.2f}')
 
     # Footer
     c.setFillColor(ACCENT); c.rect(0, 0, W, 8*mm, fill=1, stroke=0)
