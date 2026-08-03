@@ -33,16 +33,55 @@ def lkr(val):
 
 def load_payroll(file_bytes):
     df = pd.read_excel(io.BytesIO(file_bytes), header=[0, 1])
+    # ── Column mapping (A→AI) ─────────────────────────────────────────────
+    # A   EPF NO
+    # B   Name
+    # C   Department
+    # D   Designation
+    # E   Date of Join
+    # F   Basic Salary
+    # G   BRA 2 (Act 2016)
+    # H   BRA 1 (Act 2005)
+    # I   Allowance
+    # J   Total Basic Earning
+    # K   Total Accessories Commission
+    # L   Daily Commission
+    # M   Repair Commission          ← NEW
+    # N   Company Commission         ← NEW
+    # O   Pre Owned Commission
+    # P   Additional Working Days
+    # Q   Salary Adjustment
+    # R   Total Income
+    # S   Number of Working Days
+    # T   No Pay Leaves
+    # U   No Pay Deduction
+    # V   Late Attendance
+    # W   Employee Contribution (EPF 8%)
+    # X   Per Day Commission Advance
+    # Y   Repair Commission Advance  ← NEW
+    # Z   Company Commission Advance ← NEW
+    # AA  Pre Owned Commission Advance
+    # AB  Salary Advance
+    # AC  Loan Repayment
+    # AD  Salary Deduction
+    # AE  Total Deduction
+    # AF  Net Salary
+    # AG  Employer Contribution (EPF 12%)
+    # AH  ETF 3%
+    # AI  Total Cost
     df.columns = [
         'epf_no','name','department','designation','date_of_join',
         'basic_salary','bra2','bra1','allowance','total_basic_earning',
-        'accessories_commission','daily_commission','pre_owned_commission',
-        'additional_working_days','salary_adjustment','total_income',
+        'accessories_commission','daily_commission',
+        'repair_commission','company_commission',           # M, N — NEW
+        'pre_owned_commission','additional_working_days','salary_adjustment','total_income',
         'working_days','no_pay_leaves','no_pay_deduction',
-        'late_attendance','epf_employee_8','per_day_comm_advance',
-        'pre_owned_comm_advance','salary_advance','salary_deduction',
-        'total_deduction','net_salary','epf_employer_12',
-        'etf_employer_3','total_cost'
+        'late_attendance','epf_employee_8',
+        'per_day_comm_advance',
+        'repair_comm_advance','company_comm_advance',       # Y, Z — NEW
+        'pre_owned_comm_advance','salary_advance','loan_repayment','salary_deduction',
+        'total_deduction','net_salary',
+        'epf_employer_12','etf_employer_3','total_cost'
     ]
     df = df[df['name'].apply(lambda x: isinstance(x, str) and len(str(x).strip()) > 2)]
     df = df[df['designation'].apply(lambda x: isinstance(x, str) and len(str(x).strip()) > 2)]
@@ -144,23 +183,24 @@ def draw_payslip_pdf(emp, pay_period):
         c.drawString(x+4*mm, y+2.2*mm, lbl)
         c.setFillColor(vc or DARK); c.drawRightString(x+w-4*mm, y+2.2*mm, lkr(val))
 
-    # Earnings
+    # ── EARNINGS ─────────────────────────────────────────────────────────────
     # Total Basic Earning = Basic + BRA2 + BRA1 + Allowance
-    # Total Income = Total Basic Earning + Accessories Commission
-    #              + Daily Commission + Pre Owned Commission
-    #              + Additional Working Days + Salary Adjustment
-    basic  = safe(emp.get('basic_salary'))
-    bra2   = safe(emp.get('bra2'))
-    bra1   = safe(emp.get('bra1'))
-    allow  = safe(emp.get('allowance'))
-    tb     = basic + bra2 + bra1 + allow        # Total Basic Earning
+    # Total Income = Total Basic Earning + Accessories + Daily + Repair
+    #              + Company + Pre Owned + Additional Working Days + Salary Adjustment
+    basic   = safe(emp.get('basic_salary'))
+    bra2    = safe(emp.get('bra2'))
+    bra1    = safe(emp.get('bra1'))
+    allow   = safe(emp.get('allowance'))
+    tb      = basic + bra2 + bra1 + allow           # Total Basic Earning
 
-    ac     = safe(emp.get('accessories_commission'))
-    dc     = safe(emp.get('daily_commission'))
-    po     = safe(emp.get('pre_owned_commission'))
-    aw     = safe(emp.get('additional_working_days'))
-    sa_adj = safe(emp.get('salary_adjustment'))
-    te     = tb + ac + dc + po + aw + sa_adj    # Total Income
+    ac      = safe(emp.get('accessories_commission'))
+    dc      = safe(emp.get('daily_commission'))
+    rc      = safe(emp.get('repair_commission'))     # NEW
+    cc      = safe(emp.get('company_commission'))    # NEW
+    po      = safe(emp.get('pre_owned_commission'))
+    aw      = safe(emp.get('additional_working_days'))
+    sa_adj  = safe(emp.get('salary_adjustment'))
+    te      = tb + ac + dc + rc + cc + po + aw + sa_adj   # Total Income
 
     hdr(m, ty, half, 'EARNINGS')
     r = ty - RH
@@ -172,6 +212,8 @@ def draw_payslip_pdf(emp, pay_period):
         ('Total Basic Earning',      tb,     True,  False),
         ('Accessories Commission',   ac,     False, True),
         ('Daily Commission',         dc,     False, False),
+        ('Repair Commission',        rc,     False, True),   # NEW
+        ('Company Commission',       cc,     False, False),  # NEW
         ('Pre Owned Commission',     po,     False, True),
         ('Additional Working Days',  aw,     False, False),
         ('Salary Adjustment',        sa_adj, False, True),
@@ -180,19 +222,21 @@ def draw_payslip_pdf(emp, pay_period):
     tot(m, r, half, 'TOTAL INCOME', te, GREEN)
     eb = r
 
-    # Deductions — read directly from payroll sheet, no auto-calculation
-    # If HR leaves EPF/ETF blank or 0 for new employees, it simply shows as 0
-    epf8 = safe(emp.get('epf_employee_8'))        # Employee EPF 8% — from sheet
-    np_d = safe(emp.get('no_pay_deduction'))
-    la   = safe(emp.get('late_attendance'))
-    lr   = safe(emp.get('salary_deduction'))
-    sa   = safe(emp.get('salary_advance'))
-    pd_adv = safe(emp.get('per_day_comm_advance'))
-    po_adv = safe(emp.get('pre_owned_comm_advance'))
-    td   = epf8 + np_d + la + lr + sa + pd_adv + po_adv
+    # ── DEDUCTIONS ────────────────────────────────────────────────────────────
+    # All values read directly from sheet — no auto-calculation
+    epf8    = safe(emp.get('epf_employee_8'))       # EPF 8% from sheet
+    np_d    = safe(emp.get('no_pay_deduction'))
+    la      = safe(emp.get('late_attendance'))
+    lr      = safe(emp.get('loan_repayment'))       # AC column
+    sa      = safe(emp.get('salary_advance'))       # AB column
+    sd      = safe(emp.get('salary_deduction'))     # AD column
+    pd_adv  = safe(emp.get('per_day_comm_advance')) # X column
+    rc_adv  = safe(emp.get('repair_comm_advance'))  # Y column — NEW
+    cc_adv  = safe(emp.get('company_comm_advance')) # Z column — NEW
+    po_adv  = safe(emp.get('pre_owned_comm_advance'))# AA column
+    td      = epf8 + np_d + la + lr + sa + sd + pd_adv + rc_adv + cc_adv + po_adv
 
-    # Earnings has 10 data rows; Deductions has 7 — pad with 3 blank rows so
-    # both TOTAL lines land on the exact same y coordinate (perfect alignment)
+    # Earnings has 12 data rows; Deductions has 10 — pad with 2 blank rows
     dx = m + half + 6*mm
     hdr(dx, ty, half, 'DEDUCTIONS')
     r2 = ty - RH
@@ -200,18 +244,20 @@ def draw_payslip_pdf(emp, pay_period):
         ('EPF 8% (Employee)',        epf8,   True,  False),
         ('No Pay Deduction',         np_d,   False, True),
         ('Late Arrivals',            la,     False, False),
-        ('Loan Repayment',           lr,     False, True),
-        ('Salary Advance',           sa,     False, False),
         ('Per Day Comm. Advance',    pd_adv, False, True),
+        ('Repair Comm. Advance',     rc_adv, False, False),  # NEW
+        ('Company Comm. Advance',    cc_adv, False, True),   # NEW
         ('Pre Owned Comm. Advance',  po_adv, False, False),
-        ('',                         0,      False, False),   # padding row 1
-        ('',                         0,      False, True),    # padding row 2
-        ('',                         0,      False, False),   # padding row 3
+        ('Salary Advance',           sa,     False, True),
+        ('Loan Repayment',           lr,     False, False),
+        ('Salary Deduction',         sd,     False, True),
+        ('',                         0,      False, False),  # padding row 1
+        ('',                         0,      False, True),   # padding row 2
     ]:
         row(dx, r2, half, lbl, v, b, a, vc=RED if v > 0 else GRAY); r2 -= RH
     tot(dx, r2, half, 'TOTAL DEDUCTIONS', td, RED)
 
-    # Gap: 10mm below TOTAL rows → thin divider line → 6mm gap → Net Pay banner
+    # ── NET PAY ───────────────────────────────────────────────────────────────
     bottom = min(eb, r2) - 18*mm
     net = te - td
 
@@ -227,7 +273,7 @@ def draw_payslip_pdf(emp, pay_period):
     c.setFont('Helvetica-Bold', 16); c.setFillColor(WHITE)
     c.drawRightString(W-m-8*mm, bottom + 4.5*mm, f'LKR {net:,.2f}')
 
-    # Gap: 8mm below Net Pay banner → thin divider line → 6mm gap → EPF/ETF box
+    # ── EMPLOYER CONTRIBUTIONS ────────────────────────────────────────────────
     epf_er = safe(emp.get('epf_employer_12'))
     etf_er = safe(emp.get('etf_employer_3'))
 
@@ -274,7 +320,7 @@ class handler(BaseHTTPRequestHandler):
             if file_bytes is None:
                 return self._json(400, {'error': 'No payroll file uploaded'})
 
-            period = fields.get('period', 'MAR 2026').strip() or 'MAR 2026'
+            period = fields.get('period', 'JUL 2026').strip() or 'JUL 2026'
             df     = load_payroll(file_bytes)
 
             zip_buf = io.BytesIO()
