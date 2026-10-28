@@ -1,4 +1,4 @@
-# iDealz Payslip Generator — Vercel Deployment Guide
+# iDealz Payslip Generator — Vercel Deployment Guide to HR
 
 ## Project Structure
 
