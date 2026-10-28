@@ -208,8 +208,8 @@ def draw_payslip_pdf(emp, pay_period):
         ('Basic Salary',             basic,  False, False),
         ('BRA 2 (Act 2016)',         bra2,   False, True),
         ('BRA 1 (Act 2005)',         bra1,   False, False),
-        ('Allowance',                allow,  False, True),
-        ('Total Basic Earning',      tb,     True,  False),
+        ('Allowance (Variable)',      allow,  False, True),
+        ('Total Gross Earning',      tb,     True,  False),
         ('Accessories Commission',   ac,     False, True),
         ('Daily Commission',         dc,     False, False),
         ('Repair Commission',        rc,     False, True),   # NEW
